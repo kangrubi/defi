@@ -6,9 +6,9 @@ import DaiToken from "../abis/DaiToken.json";
 const App = () => {
   const [state, setState] = useState({
     account: "0x0",
-    daiToken: {},
-    dappToken: {},
-    tokenFarm: {},
+    daiToken: null,
+    dappToken: null,
+    tokenFarm: null,
     daiTokenBalance: "0",
     dappTokenBalance: "0",
     stakingBalance: "0",
@@ -70,9 +70,12 @@ const App = () => {
           .balanceOf(account)
           .call();
 
-        console.log(daiTokenBalance);
-      } catch {
-        console.error("Error fetching DaiToken balance:");
+        setState((prevState) => ({
+          ...prevState,
+          daiTokenBalance: daiTokenBalance.toString(),
+        }));
+      } catch (error) {
+        console.error("Error fetching DaiToken balance:", error);
       }
     }
   };
@@ -86,7 +89,9 @@ const App = () => {
     if (state.daiToken && state.account !== "0x0") {
       loadDaiTokenBalance();
     }
-  }, [state.account, state.daiToken]);
+
+    console.log(state.daiTokenBalance);
+  }, [state.account, state.daiToken, state.daiTokenBalance]);
 
   return (
     <div>
