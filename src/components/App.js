@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import Navbar from "./Navbar";
 import Web3 from "web3";
 import DaiToken from "../abis/DaiToken.json";
-import DappToken from "../abis/DaiToken.json";
+import DappToken from "../abis/DappToken.json";
 import TokenFarm from "../abis/TokenFarm.json";
+import Main from "./Main";
 
 const App = () => {
   const [state, setState] = useState({
@@ -14,8 +15,18 @@ const App = () => {
     daiTokenBalance: "0",
     dappTokenBalance: "0",
     stakingBalance: "0",
-    loading: true,
   });
+  const [loading, setLoading] = useState(true);
+
+  const {
+    account,
+    daiToken,
+    daiTokenBalance,
+    dappToken,
+    dappTokenBalance,
+    tokenFarm,
+    stakingBalance,
+  } = state;
 
   const loadWeb3 = async () => {
     if (window.ethereum) {
@@ -69,24 +80,81 @@ const App = () => {
       dappToken,
       tokenFarm,
     }));
+    setLoading(false);
   };
-  const loadDaiTokenBalance = async () => {
-    const { account, daiToken } = state;
 
-    // 컨트랙트 객체의 메서드 호출
-    if (daiToken && account) {
+  const loadBalance = async (token, account) => {
+    if (token && account) {
       try {
-        const daiTokenBalance = await daiToken.methods
-          .balanceOf(account)
-          .call();
-
-        setState((prevState) => ({
-          ...prevState,
-          daiTokenBalance: daiTokenBalance.toString(),
-        }));
+        if (token.methods.balanceOf) {
+          return await token.methods.balanceOf(account).call();
+        } else if (token.methods.stakingBalance) {
+          return await token.methods.stakingBalance(account).call();
+        }
       } catch (error) {
-        console.error("Error fetching DaiToken balance:", error);
+        alert(
+          `${token.contractName} contract not deployed to detected network.`
+        );
+        return;
       }
+    }
+  };
+
+  const loadTokenBalance = async () => {
+    // 컨트랙트 객체의 메서드 호출
+    const daiTokenBalance = await loadBalance(daiToken, account);
+    const dappTokenBalance = await loadBalance(dappToken, account);
+    const stakingBalance = await loadBalance(tokenFarm, account);
+
+    setState((prevState) => ({
+      ...prevState,
+      daiTokenBalance: daiTokenBalance ? daiTokenBalance.toString() : "0",
+      dappTokenBalance: dappTokenBalance ? dappTokenBalance.toString() : "0",
+      stakingBalance: stakingBalance ? stakingBalance.toString() : "0",
+    }));
+
+    setLoading(false);
+  };
+
+  const stakeTokens = async (amount) => {
+    setLoading(true);
+
+    try {
+      // 1단계: TokenFarm 컨트랙트가 사용자의 Dai 토큰을 사용할 수 있도록 승인
+      await daiToken.methods
+        .approve(tokenFarm._address, amount)
+        .send({ from: account })
+        .on("transactionHash", async (hash) => {
+          // 2단계: Dai 토큰을 TokenFarm 컨트랙트에 스테이킹
+          await tokenFarm.methods
+            .stakeTokens(amount)
+            .send({ from: account })
+            .on("transactionHash", async (hash) => {
+              setLoading(false);
+            });
+        });
+    } catch {
+      alert("Error staking tokens");
+      setLoading(false);
+    }
+  };
+
+  const unStakeTokens = async () => {
+    setLoading(true);
+
+    console.log(tokenFarm);
+
+    try {
+      await tokenFarm.methods
+        .unstakeTokens()
+        .send({ from: account })
+        .on("transactionHash", async (hash) => {
+          setLoading(false);
+        });
+    } catch (error) {
+      console.log(error);
+      alert("Error unStaking tokens");
+      setLoading(false);
     }
   };
 
@@ -96,14 +164,47 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (state.daiToken && state.account !== "0x0") {
-      loadDaiTokenBalance();
-    }
-  }, [state.account, state.daiToken, state.daiTokenBalance]);
+    if (account !== "0x0" && daiToken && dappToken && tokenFarm)
+      loadTokenBalance();
+  }, [
+    account,
+    daiToken,
+    dappToken,
+    tokenFarm,
+    daiTokenBalance,
+    dappTokenBalance,
+    stakingBalance,
+  ]);
 
   return (
     <div>
       <Navbar account={state.account} />
+
+      <div className="container-fluid mt-5">
+        <div className="row">
+          <main
+            role="main"
+            className="col-lg-12 ml-auto mr-auto"
+            style={{ maxWidth: "600px" }}
+          >
+            <div className="content mr-auto ml-auto">
+              {loading ? (
+                <p id="loader" className="text-center">
+                  Loading...
+                </p>
+              ) : (
+                <Main
+                  daiTokenBalance={daiTokenBalance}
+                  dappTokenBalance={dappTokenBalance}
+                  stakingBalance={stakingBalance}
+                  stakeTokens={stakeTokens}
+                  unStakeTokens={unStakeTokens}
+                />
+              )}
+            </div>
+          </main>
+        </div>
+      </div>
     </div>
   );
 };
