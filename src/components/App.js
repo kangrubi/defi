@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import Navbar from "./Navbar";
 import Web3 from "web3";
 import DaiToken from "../abis/DaiToken.json";
+import DappToken from "../abis/DaiToken.json";
+import TokenFarm from "../abis/TokenFarm.json";
 
 const App = () => {
   const [state, setState] = useState({
@@ -36,6 +38,17 @@ const App = () => {
     }
   };
 
+  const loadContract = async (web3, contractJson, networkId) => {
+    const contractData = contractJson.networks[networkId];
+    if (contractData) {
+      return new web3.eth.Contract(contractJson.abi, contractData.address);
+    } else {
+      alert(
+        `${contractJson.contractName} contract not deployed to detected network.`
+      );
+    }
+  };
+
   const loadBlockchainData = async () => {
     const web3 = new Web3(window.ethereum);
 
@@ -46,20 +59,17 @@ const App = () => {
     const networkId = await web3.eth.getChainId();
 
     // 컨트랙트 객체 생성
-    const daiTokenData = DaiToken.networks[networkId];
-    if (daiTokenData) {
-      const daiToken = new web3.eth.Contract(
-        DaiToken.abi,
-        daiTokenData.address
-      );
+    const daiToken = await loadContract(web3, DaiToken, networkId);
+    const dappToken = await loadContract(web3, DappToken, networkId);
+    const tokenFarm = await loadContract(web3, TokenFarm, networkId);
 
-      setState((prevState) => ({
-        ...prevState,
-        daiToken,
-      }));
-    }
+    setState((prevState) => ({
+      ...prevState,
+      daiToken,
+      dappToken,
+      tokenFarm,
+    }));
   };
-
   const loadDaiTokenBalance = async () => {
     const { account, daiToken } = state;
 
@@ -89,8 +99,6 @@ const App = () => {
     if (state.daiToken && state.account !== "0x0") {
       loadDaiTokenBalance();
     }
-
-    console.log(state.daiTokenBalance);
   }, [state.account, state.daiToken, state.daiTokenBalance]);
 
   return (
